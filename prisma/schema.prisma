@@ -16,9 +16,17 @@ enum EmployeeStatus {
 
 model Department {
   id          Int        @id @default(autoincrement())
+  code        String     @unique
   name        String     @unique
   description String?
-  employees   Employee[]
+
+  // หัวหน้าแผนก (ยังไม่มีก็ได้ / พนักงาน 1 คนเป็นหัวหน้าได้แค่ 1 แผนก)
+  manager     Employee?  @relation("DepartmentManager", fields: [manager_id], references: [id], onDelete: SetNull)
+  manager_id  Int?       @unique
+
+  // พนักงานทั้งหมดในแผนก
+  employees   Employee[] @relation("DepartmentEmployees")
+
   created_at  DateTime   @default(now())
   updated_at  DateTime   @updatedAt
 }
@@ -30,15 +38,18 @@ model Employee {
   last_name     String
   email         String         @unique
   phone         String?
-
-
-
   position      String
   salary        Decimal        @db.Decimal(10, 2)
   start_date    DateTime       @db.Date
   status        EmployeeStatus @default(active)
-  department    Department     @relation(fields: [department_id], references: [id], onDelete: Restrict)
+
+  // สังกัดแผนกไหน
+  department    Department     @relation("DepartmentEmployees", fields: [department_id], references: [id], onDelete: Restrict)
   department_id Int
+
+  // เป็นหัวหน้าแผนกไหน (ถ้าไม่ได้เป็นก็ว่าง)
+  managed_department Department? @relation("DepartmentManager")
+
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
 
