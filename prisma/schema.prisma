@@ -14,6 +14,13 @@ enum EmployeeStatus {
   resigned
 }
 
+enum Role {
+  ADMIN
+  HR
+  MANAGER
+  EMPLOYEE
+}
+
 model Department {
   id          Int        @id @default(autoincrement())
   code        String     @unique
@@ -50,8 +57,25 @@ model Employee {
   // เป็นหัวหน้าแผนกไหน (ถ้าไม่ได้เป็นก็ว่าง)
   managed_department Department? @relation("DepartmentManager")
 
+  // บัญชีผู้ใช้ของพนักงานคนนี้ (ยังไม่สมัครก็ว่าง)
+  user          User?
+
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
 
   @@index([department_id])
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
+  password    String
+  role        Role      @default(EMPLOYEE)
+
+  // บัญชีนี้เป็นของพนักงานคนไหน (ว่างได้ เช่น บัญชี admin)
+  employee    Employee? @relation(fields: [employee_id], references: [id])
+  employee_id Int?      @unique
+
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 }

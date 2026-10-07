@@ -7,11 +7,15 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateDepartmentDto } from './dto/department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { DepartmentService } from './department.service';
+import { SetManagerDto } from './dto/set-manager.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('departments')
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentService) {}
@@ -31,6 +35,13 @@ export class DepartmentsController {
     return this.departmentsService.findOne(id);
   }
 
+  @Patch(':id/manager')
+  setManager(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetManagerDto,
+  ) {
+    return this.departmentsService.setManager(id, dto.employee_id);
+  }
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
