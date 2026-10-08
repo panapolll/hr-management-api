@@ -9,6 +9,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 
+const EMPLOYEE_PUBLIC_FIELDS = {
+  id: true,
+  employee_code: true,
+  first_name: true,
+  last_name: true,
+  position: true,
+  status: true,
+} as const;
 @Injectable()
 export class DepartmentService {
   constructor(private readonly prisma: PrismaService) {}
@@ -34,7 +42,10 @@ export class DepartmentService {
   async findOne(id: number) {
     const department = await this.prisma.department.findUnique({
       where: { id },
-      include: { employees: true, manager: true },
+      include: {
+        employees: { select: EMPLOYEE_PUBLIC_FIELDS },
+        manager: { select: EMPLOYEE_PUBLIC_FIELDS },
+      },
     });
     if (!department) {
       throw new NotFoundException(`ไม่พบแผนก id ${id}`);
@@ -81,7 +92,7 @@ export class DepartmentService {
     return this.prisma.department.update({
       where: { id },
       data: { manager_id: employeeId },
-      include: { manager: true },
+      include: { manager: { select: EMPLOYEE_PUBLIC_FIELDS } },
     });
   }
 

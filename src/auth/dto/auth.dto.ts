@@ -1,4 +1,11 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { Role } from '@prisma/client';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsEmail({}, { message: 'รูปแบบอีเมลไม่ถูกต้อง' })
@@ -16,4 +23,9 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password!: string;
+}
+
+export class UpdateRoleDto {
+  @IsEnum(Role, { message: 'role ต้องเป็น ADMIN, HR, MANAGER หรือ EMPLOYEE' })
+  role!: Role;
 }

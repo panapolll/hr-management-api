@@ -1,13 +1,15 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { Role, User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -93,5 +95,33 @@ export class AuthService {
         employee_id: user.employee_id,
       },
     };
+  }
+
+  findAllUsers() {
+    return this.prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        employee_id: true,
+        created_at: true,
+      },
+    });
+  }
+
+  async updateRole(targetId: number, role: Role, currentUserId: number) {
+    if (targetId === currentUserId) {
+      throw new BadRequestException('ไม่สามารถเปลี่ยน role ของตัวเองได้');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: targetId } });
+    if (!user) {
+      throw new NotFoundException(`ไม่พบผู้ใช้ id ${targetId}`);
+    }
+    return this.prisma.user.update({
+      where: { id: targetId },
+      data: { role },
+      select: { id: true, email: true, role: true, employee_id: true },
+    });
   }
 }
