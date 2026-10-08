@@ -9,18 +9,21 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-import { DepartmentService } from './department.service';
 import { SetManagerDto } from './dto/set-manager.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('departments')
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentService) {}
 
   @Post()
+  @Roles('HR', 'ADMIN')
   create(@Body() dto: CreateDepartmentDto) {
     return this.departmentsService.create(dto);
   }
@@ -36,13 +39,16 @@ export class DepartmentsController {
   }
 
   @Patch(':id/manager')
+  @Roles('HR', 'ADMIN')
   setManager(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SetManagerDto,
   ) {
     return this.departmentsService.setManager(id, dto.employee_id);
   }
+
   @Patch(':id')
+  @Roles('HR', 'ADMIN')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDepartmentDto,
@@ -51,6 +57,7 @@ export class DepartmentsController {
   }
 
   @Delete(':id')
+  @Roles('HR', 'ADMIN')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.departmentsService.remove(id);
   }
