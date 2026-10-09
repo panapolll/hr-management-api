@@ -81,10 +81,15 @@ export class EmployeeService {
       dto.department_id !== undefined &&
       dto.department_id !== current.department_id;
 
+    const isResigning =
+      dto.status === 'resigned' && current.status !== 'resigned';
+
+    // ย้ายแผนกหรือลาออก = ต้องถอดออกจากการเป็นหัวหน้า
+    const shouldClearManager = isChangingDepartment || isResigning;
+
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // ย้ายแผนก = ถอดออกจากการเป็นหัวหน้าแผนกเดิม
-        if (isChangingDepartment) {
+        if (shouldClearManager) {
           await tx.department.updateMany({
             where: { manager_id: id },
             data: { manager_id: null },
