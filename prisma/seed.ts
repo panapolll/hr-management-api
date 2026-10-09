@@ -141,6 +141,7 @@ const users: { email: string; role: Role }[] = [
 ];
 
 // ---------- รัน seed ----------
+// หลักการ: ถ้ายังไม่มีให้สร้าง ถ้ามีแล้วอย่าแตะ (รันซ้ำได้โดยไม่ทับข้อมูลจริง)
 
 async function main() {
   const adminPassword = await bcrypt.hash(
@@ -177,10 +178,10 @@ async function main() {
   }
   console.log(`✔ พนักงาน ${employees.length} คน`);
 
-  // 3. หัวหน้าแผนก
+  // 3. หัวหน้าแผนก (ตั้งเฉพาะแผนกที่ยังไม่มีหัวหน้า ไม่ทับค่าที่ตั้งไว้แล้ว)
   for (const [deptCode, employeeCode] of Object.entries(managers)) {
-    await prisma.department.update({
-      where: { code: deptCode },
+    await prisma.department.updateMany({
+      where: { code: deptCode, manager_id: null },
       data: { manager_id: employeeIds[employeeCode] },
     });
   }
@@ -193,7 +194,7 @@ async function main() {
     });
     await prisma.user.upsert({
       where: { email: user.email },
-      update: { role: user.role },
+      update: {},
       create: {
         email: user.email,
         password: user.role === 'ADMIN' ? adminPassword : userPassword,

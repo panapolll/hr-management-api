@@ -1,8 +1,9 @@
-import { IsInt, Min, Validate } from 'class-validator';
+import { IsInt, Min, ValidateIf } from 'class-validator';
 
 export class SetManagerDto {
-  @Validate((o) => o.manager_id !== null)
+  // ตรวจเฉพาะตอนที่ไม่ใช่ null (null = ถอดหัวหน้า)
+  @ValidateIf((o: SetManagerDto) => o.employee_id !== null)
   @IsInt()
   @Min(1)
-  employee_id!: number;
+  employee_id!: number | null;
 }
