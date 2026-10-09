@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 
+// ข้อมูลพนักงานที่โชว์ในหน้าแผนก (ไม่มีเงินเดือน)
 const EMPLOYEE_PUBLIC_FIELDS = {
   id: true,
   employee_code: true,
@@ -17,6 +18,7 @@ const EMPLOYEE_PUBLIC_FIELDS = {
   position: true,
   status: true,
 } as const;
+
 @Injectable()
 export class DepartmentService {
   constructor(private readonly prisma: PrismaService) {}
@@ -65,6 +67,7 @@ export class DepartmentService {
   async setManager(id: number, employeeId: number | null) {
     await this.findOne(id);
 
+    // ถอดหัวหน้าออก
     if (employeeId === null) {
       return this.prisma.department.update({
         where: { id },
@@ -86,6 +89,16 @@ export class DepartmentService {
     if (employee.status === 'resigned') {
       throw new BadRequestException(
         'ไม่สามารถตั้งพนักงานที่ลาออกแล้วเป็นหัวหน้าได้',
+      );
+    }
+
+    // กันกรณีเป็นหัวหน้าแผนกอื่นอยู่แล้ว (manager_id ห้ามซ้ำ)
+    const managedElsewhere = await this.prisma.department.findFirst({
+      where: { manager_id: employeeId, NOT: { id } },
+    });
+    if (managedElsewhere) {
+      throw new ConflictException(
+        `Employee ${employeeId} is already the manager of ${managedElsewhere.code}`,
       );
     }
 

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/current-user.decorator';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { QueryEmployeeDto } from './dto/query-employee.dto';
@@ -72,18 +72,32 @@ export class EmployeeService {
   }
 
   async update(id: number, dto: UpdateEmployeeDto) {
-    await this.getEmployeeOrThrow(id);
+    const current = await this.getEmployeeOrThrow(id);
     if (dto.department_id) {
       await this.ensureDepartmentExists(dto.department_id);
     }
+
+    const isChangingDepartment =
+      dto.department_id !== undefined &&
+      dto.department_id !== current.department_id;
+
     try {
-      return await this.prisma.employee.update({
-        where: { id },
-        data: {
-          ...dto,
-          ...(dto.start_date && { start_date: new Date(dto.start_date) }),
-        },
-        include: { department: true },
+      return await this.prisma.$transaction(async (tx) => {
+        // ย้ายแผนก = ถอดออกจากการเป็นหัวหน้าแผนกเดิม
+        if (isChangingDepartment) {
+          await tx.department.updateMany({
+            where: { manager_id: id },
+            data: { manager_id: null },
+          });
+        }
+        return tx.employee.update({
+          where: { id },
+          data: {
+            ...dto,
+            ...(dto.start_date && { start_date: new Date(dto.start_date) }),
+          },
+          include: { department: true },
+        });
       });
     } catch (error) {
       this.handlePrismaError(error);
@@ -95,11 +109,21 @@ export class EmployeeService {
     if (employee.status === 'resigned') {
       throw new BadRequestException('พนักงานคนนี้ได้ลาออกไปแล้ว');
     }
-    return this.prisma.employee.update({
-      where: { id },
-      data: { status: 'resigned' },
+
+    return this.prisma.$transaction(async (tx) => {
+      // ลาออก = ถอดออกจากการเป็นหัวหน้าแผนก
+      await tx.department.updateMany({
+        where: { manager_id: id },
+        data: { manager_id: null },
+      });
+      return tx.employee.update({
+        where: { id },
+        data: { status: 'resigned' },
+      });
     });
   }
+
+  // ---------- ตัวช่วยภายใน ----------
 
   // เห็นเงินเดือนได้เฉพาะ HR และ ADMIN
   private canSeeSalary(user: AuthUser) {
@@ -126,7 +150,6 @@ export class EmployeeService {
     } satisfies Prisma.EmployeeSelect;
   }
 
-  // ใช้ภายใน service เช็คว่ามีพนักงานคนนี้ (ไม่เกี่ยวกับสิทธิ์)
   private async getEmployeeOrThrow(id: number) {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) {
