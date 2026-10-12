@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RegisterDto } from './dto/auth.dto';
+import { ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -100,6 +100,32 @@ export class AuthService {
       throw new UnauthorizedException();
     }
     return user;
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    const isCurrentValid = await bcrypt.compare(
+      dto.current_password,
+      user.password,
+    );
+    if (!isCurrentValid) {
+      throw new UnauthorizedException('รหัสผ่านเดิมไม่ถูกต้อง');
+    }
+
+    if (dto.current_password === dto.new_password) {
+      throw new BadRequestException('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.new_password, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+    return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
   }
 
   findAllUsers() {
