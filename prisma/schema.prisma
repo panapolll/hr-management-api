@@ -60,6 +60,9 @@ model Employee {
   // บัญชีผู้ใช้ของพนักงานคนนี้ (ยังไม่สมัครก็ว่าง)
   user          User?
 
+  // ประวัติการเข้างาน
+  attendances   Attendance[]
+
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
 
@@ -78,4 +81,22 @@ model User {
 
   created_at  DateTime  @default(now())
   updated_at  DateTime  @updatedAt
+}
+
+model Attendance {
+  id           Int       @id @default(autoincrement())
+  employee     Employee  @relation(fields: [employee_id], references: [id])
+  employee_id  Int
+  work_date    DateTime  @db.Date
+  check_in     DateTime
+  check_out    DateTime?
+  late_minutes Int       @default(0)
+  work_minutes Int?
+
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  // พนักงาน 1 คน เข้างานได้วันละ 1 ครั้ง
+  @@unique([employee_id, work_date])
+  @@index([work_date])
 }
