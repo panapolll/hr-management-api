@@ -11,6 +11,7 @@ import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto';
+import { BLOCKED_STATUSES } from './jwt.strategy';
 
 @Injectable()
 export class AuthService {
@@ -31,10 +32,10 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    // ห้ามสร้างบัญชีให้คนที่ลาออกไปแล้ว
-    if (employee?.status === 'resigned') {
+    // ห้ามสร้างบัญชีให้คนที่ลาออกหรือถูกพักงาน
+    if (employee && BLOCKED_STATUSES.includes(employee.status)) {
       throw new BadRequestException(
-        'ไม่สามารถสร้างบัญชีให้พนักงานที่ลาออกแล้ว',
+        `Cannot create an account for a ${employee.status} employee`,
       );
     }
 
@@ -69,9 +70,9 @@ export class AuthService {
       throw new UnauthorizedException('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     }
 
-    // เช็คหลังรหัสผ่านถูก เพื่อไม่ให้คนเดาได้ว่าอีเมลไหนเป็นของคนลาออก
-    if (user.employee?.status === 'resigned') {
-      throw new ForbiddenException('บัญชีนี้ถูกระงับเนื่องจากพนักงานลาออกแล้ว');
+    // เช็คหลังรหัสผ่านถูก เพื่อไม่ให้คนเดาได้ว่าอีเมลไหนถูกระงับ
+    if (user.employee && BLOCKED_STATUSES.includes(user.employee.status)) {
+      throw new ForbiddenException('This account is suspended');
     }
 
     return this.buildAuthResponse(user);

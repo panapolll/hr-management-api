@@ -2,10 +2,14 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { EmployeeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './current-user.decorator';
 
 type JwtPayload = { sub: number };
+
+// สถานะที่ห้ามใช้ระบบ
+export const BLOCKED_STATUSES: EmployeeStatus[] = ['inactive', 'resigned'];
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -20,7 +24,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // token บอกแค่ว่าเป็นบัญชีไหน ส่วน role กับ employee_id ดึงสดจากฐานข้อมูลทุกครั้ง
   async validate(payload: JwtPayload): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -33,8 +36,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
 
-    if (!user || user.employee?.status === 'resigned') {
+    if (!user) {
       throw new UnauthorizedException();
+    }
+    if (user.employee && BLOCKED_STATUSES.includes(user.employee.status)) {
+      throw new UnauthorizedException('This account is suspended');
     }
 
     return {

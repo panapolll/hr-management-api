@@ -174,14 +174,19 @@ export class AttendanceService {
     return me.department_id;
   }
 
+  // ลงเวลาได้เฉพาะพนักงานที่ active เท่านั้น
   private async getActiveEmployeeId(user: AuthUser): Promise<number> {
     const employeeId = this.requireEmployeeId(user);
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
+      select: { status: true },
     });
-    if (!employee || employee.status === 'resigned') {
+    if (!employee) {
+      throw new ForbiddenException('This account is not linked to an employee');
+    }
+    if (employee.status !== 'active') {
       throw new ForbiddenException(
-        'Resigned employees cannot record attendance',
+        `Cannot record attendance while ${employee.status}`,
       );
     }
     return employeeId;
