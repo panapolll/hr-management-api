@@ -8,10 +8,14 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { AttendanceService } from './attendance.service';
-import { QueryMyAttendanceDto } from './dto/query-attendance.dto';
+import {
+  QueryAttendanceDto,
+  QueryMyAttendanceDto,
+} from './dto/query-attendance.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('attendance')
@@ -35,5 +39,11 @@ export class AttendanceController {
     @Query() query: QueryMyAttendanceDto,
   ) {
     return this.attendanceService.findMine(user, query);
+  }
+
+  @Get()
+  @Roles('MANAGER', 'HR', 'ADMIN')
+  findAll(@Query() query: QueryAttendanceDto, @CurrentUser() user: AuthUser) {
+    return this.attendanceService.findAll(query, user);
   }
 }

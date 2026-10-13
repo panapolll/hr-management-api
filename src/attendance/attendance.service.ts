@@ -8,8 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/current-user.decorator';
-import { QueryMyAttendanceDto } from './dto/query-attendance.dto';
 import { parseTime, toBangkokDate, toBangkokMinutes } from './attendance-time';
+import {
+  QueryAttendanceDto,
+  QueryMyAttendanceDto,
+} from './dto/query-attendance.dto';
 
 @Injectable()
 export class AttendanceService {
@@ -98,6 +101,56 @@ export class AttendanceService {
     });
   }
 
+  async findAll(query: QueryAttendanceDto, user: AuthUser) {
+    const {
+      from,
+      to,
+      department_id,
+      employee_id,
+      page = 1,
+      limit = 20,
+    } = query;
+
+    const where: Prisma.AttendanceWhereInput = {};
+
+    if (from || to) {
+      where.work_date = {
+        ...(from && { gte: new Date(from) }),
+        ...(to && { lte: new Date(to) }),
+      };
+    }
+    if (employee_id) where.employee_id = employee_id;
+    if (department_id) where.employee = { department_id };
+
+    if (user.role === 'MANAGER') {
+      where.employee = { department_id: await this.getOwnDepartmentId(user) };
+    }
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.attendance.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ work_date: 'desc' }, { check_in: 'asc' }],
+        include: {
+          employee: {
+            select: {
+              id: true,
+              employee_code: true,
+              first_name: true,
+              last_name: true,
+              department: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.attendance.count({ where }),
+    ]);
+    return {
+      data,
+      meta: { total, page, limit, total_pages: Math.ceil(total / limit) },
+    };
+  }
+
   // ---------- ตัวช่วยภายใน ----------
 
   private requireEmployeeId(user: AuthUser): number {
@@ -107,6 +160,18 @@ export class AttendanceService {
       );
     }
     return user.employee_id;
+  }
+
+  private async getOwnDepartmentId(user: AuthUser): Promise<number> {
+    const employeeId = this.requireEmployeeId(user);
+    const me = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { department_id: true },
+    });
+    if (!me) {
+      throw new ForbiddenException('This account is not linked to an employee');
+    }
+    return me.department_id;
   }
 
   private async getActiveEmployeeId(user: AuthUser): Promise<number> {
