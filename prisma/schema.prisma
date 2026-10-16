@@ -21,6 +21,19 @@ enum Role {
   EMPLOYEE
 }
 
+enum LeaveType {
+  sick
+  personal
+  vacation
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
 model Department {
   id          Int        @id @default(autoincrement())
   code        String     @unique
@@ -63,6 +76,12 @@ model Employee {
   // ประวัติการเข้างาน
   attendances   Attendance[]
 
+  // ใบลาที่พนักงานคนนี้ยื่น
+  leave_requests  LeaveRequest[] @relation("LeaveRequester")
+
+  // ใบลาที่พนักงานคนนี้เป็นคนพิจารณา (อนุมัติ/ไม่อนุมัติ)
+  reviewed_leaves LeaveRequest[] @relation("LeaveReviewer")
+
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
 
@@ -99,4 +118,31 @@ model Attendance {
   // พนักงาน 1 คน เข้างานได้วันละ 1 ครั้ง
   @@unique([employee_id, work_date])
   @@index([work_date])
+}
+
+model LeaveRequest {
+  id          Int         @id @default(autoincrement())
+
+  // คนยื่นใบลา
+  employee    Employee    @relation("LeaveRequester", fields: [employee_id], references: [id])
+  employee_id Int
+
+  type        LeaveType
+  start_date  DateTime    @db.Date
+  end_date    DateTime    @db.Date
+  days        Int         // จำนวนวันทำงาน (จ.–ศ.) ที่ลา
+  reason      String?
+  status      LeaveStatus @default(pending)
+
+  // คนพิจารณา (ว่างไว้จนกว่าจะอนุมัติ/ไม่อนุมัติ)
+  reviewer    Employee?   @relation("LeaveReviewer", fields: [reviewer_id], references: [id])
+  reviewer_id Int?
+  reviewed_at DateTime?
+  review_note String?
+
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  @@index([employee_id, status])
+  @@index([status])
 }
