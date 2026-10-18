@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +10,13 @@ import { LeaveStatus, LeaveType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { toBangkokDate } from '../attendance/attendance-time';
-import { CreateLeaveDto, QueryMyLeaveDto } from './dto/leave.dto';
+import {
+  ApproveLeaveDto,
+  CreateLeaveDto,
+  QueryLeaveDto,
+  QueryMyLeaveDto,
+  RejectLeaveDto,
+} from './dto/leave.dto';
 import { countWeekdays, toDateOnly } from './leave-days';
 
 // สถานะที่นับว่า "จองโควต้าไว้แล้ว" (รออนุมัติ + อนุมัติแล้ว)
@@ -156,6 +163,121 @@ export class LeaveService {
     });
 
     return { year: targetYear, balance };
+  }
+
+  async findAll(query: QueryLeaveDto, user: AuthUser) {
+    const {
+      status,
+      type,
+      employee_id,
+      department_id,
+      year,
+      page = 1,
+      limit = 20,
+    } = query;
+
+    const where: Prisma.LeaveRequestWhereInput = {};
+    if (status) where.status = status;
+    if (type) where.type = type;
+    if (employee_id) where.employee_id = employee_id;
+    if (year) where.start_date = this.yearRange(year);
+    if (department_id) where.employee = { department_id };
+
+    if (user.role === 'MANAGER') {
+      const managerId = this.requireEmployeeId(user);
+      where.employee = { department: { manager_id: managerId } };
+      where.NOT = { employee_id: managerId };
+    }
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.leaveRequest.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              employee_code: true,
+              first_name: true,
+              last_name: true,
+              department: { select: { id: true, code: true, name: true } },
+            },
+          },
+          reviewer: { select: { id: true, first_name: true, last_name: true } },
+        },
+      }),
+      this.prisma.leaveRequest.count({ where }),
+    ]);
+    return {
+      data,
+      meta: { total, page, limit, total_pages: Math.ceil(total / limit) },
+    };
+  }
+
+  approve(user: AuthUser, id: number, dto: ApproveLeaveDto) {
+    return this.review(user, id, 'approved', dto.review_note);
+  }
+  reject(user: AuthUser, id: number, dto: RejectLeaveDto) {
+    return this.review(user, id, 'rejected', dto.review_note);
+  }
+  private async review(
+    user: AuthUser,
+    id: number,
+    decision: 'approved' | 'rejected',
+    note?: string,
+  ) {
+    const reviewerId = this.requireEmployeeId(user);
+
+    const leave = await this.prisma.leaveRequest.findUnique({
+      where: { id },
+      include: {
+        employee: { select: { department: { select: { manager_id: true } } } },
+      },
+    });
+    if (!leave) {
+      throw new NotFoundException(`Leave request #${id} not found`);
+    }
+
+    // ด่าน 1: ห้ามพิจารณาใบลาของตัวเอง
+    if (leave.employee_id === reviewerId) {
+      throw new ForbiddenException('You cannot review your own leave request');
+    }
+
+    // ด่าน 2: ต้องเป็น HR หรือเป็นหัวหน้าแผนกของคนลา
+    const isHr = user.role === 'HR';
+    const isTheirManager =
+      user.role === 'MANAGER' &&
+      leave.employee.department.manager_id === reviewerId;
+    if (!isHr && !isTheirManager) {
+      throw new NotFoundException(`Leave request #${id} not found`);
+    }
+
+    // ด่าน 3: พิจารณาได้เฉพาะใบที่ยังรออยู่
+    if (leave.status !== 'pending') {
+      throw new BadRequestException(`Cannot review a ${leave.status} request`);
+    }
+
+    // อัปเดตเฉพาะตอนที่ยังเป็น pending (กันสองคนกดพร้อมกัน)
+    const result = await this.prisma.leaveRequest.updateMany({
+      where: { id, status: 'pending' },
+      data: {
+        status: decision,
+        reviewer_id: reviewerId,
+        reviewed_at: new Date(),
+        review_note: note,
+      },
+    });
+    if (result.count === 0) {
+      throw new ConflictException('This request has just been reviewed');
+    }
+
+    return this.prisma.leaveRequest.findUnique({
+      where: { id },
+      include: {
+        reviewer: { select: { id: true, first_name: true, last_name: true } },
+      },
+    });
   }
 
   // ---------- ตัวช่วยภายใน ----------
