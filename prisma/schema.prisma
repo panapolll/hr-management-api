@@ -34,21 +34,26 @@ enum LeaveStatus {
   cancelled
 }
 
+enum PayrollStatus {
+  draft
+  finalized
+}
+
 model Department {
-  id          Int        @id @default(autoincrement())
-  code        String     @unique
-  name        String     @unique
+  id          Int     @id @default(autoincrement())
+  code        String  @unique
+  name        String  @unique
   description String?
 
   // หัวหน้าแผนก (ยังไม่มีก็ได้ / พนักงาน 1 คนเป็นหัวหน้าได้แค่ 1 แผนก)
-  manager     Employee?  @relation("DepartmentManager", fields: [manager_id], references: [id], onDelete: SetNull)
-  manager_id  Int?       @unique
+  manager    Employee? @relation("DepartmentManager", fields: [manager_id], references: [id], onDelete: SetNull)
+  manager_id Int?      @unique
 
   // พนักงานทั้งหมดในแผนก
-  employees   Employee[] @relation("DepartmentEmployees")
+  employees Employee[] @relation("DepartmentEmployees")
 
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
 model Employee {
@@ -64,42 +69,49 @@ model Employee {
   status        EmployeeStatus @default(active)
 
   // สังกัดแผนกไหน
-  department    Department     @relation("DepartmentEmployees", fields: [department_id], references: [id], onDelete: Restrict)
+  department    Department @relation("DepartmentEmployees", fields: [department_id], references: [id], onDelete: Restrict)
   department_id Int
 
   // เป็นหัวหน้าแผนกไหน (ถ้าไม่ได้เป็นก็ว่าง)
   managed_department Department? @relation("DepartmentManager")
 
   // บัญชีผู้ใช้ของพนักงานคนนี้ (ยังไม่สมัครก็ว่าง)
-  user          User?
+  user User?
 
   // ประวัติการเข้างาน
-  attendances   Attendance[]
+  attendances Attendance[]
 
   // ใบลาที่พนักงานคนนี้ยื่น
-  leave_requests  LeaveRequest[] @relation("LeaveRequester")
+  leave_requests LeaveRequest[] @relation("LeaveRequester")
 
   // ใบลาที่พนักงานคนนี้เป็นคนพิจารณา (อนุมัติ/ไม่อนุมัติ)
   reviewed_leaves LeaveRequest[] @relation("LeaveReviewer")
 
-  created_at    DateTime       @default(now())
-  updated_at    DateTime       @updatedAt
+  // สลิปเงินเดือนของพนักงานคนนี้
+  payslips Payslip[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@index([department_id])
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  email       String    @unique
-  password    String
-  role        Role      @default(EMPLOYEE)
+  id       Int    @id @default(autoincrement())
+  email    String @unique
+  password String
+  role     Role   @default(EMPLOYEE)
 
   // บัญชีนี้เป็นของพนักงานคนไหน (ว่างได้ เช่น บัญชี admin)
   employee    Employee? @relation(fields: [employee_id], references: [id])
   employee_id Int?      @unique
 
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  // รอบเงินเดือนที่ผู้ใช้คนนี้สร้าง / ยืนยัน
+  created_payrolls   PayrollRun[] @relation("PayrollCreatedBy")
+  finalized_payrolls PayrollRun[] @relation("PayrollFinalizedBy")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
 model Attendance {
@@ -112,8 +124,8 @@ model Attendance {
   late_minutes Int       @default(0)
   work_minutes Int?
 
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // พนักงาน 1 คน เข้างานได้วันละ 1 ครั้ง
   @@unique([employee_id, work_date])
@@ -121,28 +133,73 @@ model Attendance {
 }
 
 model LeaveRequest {
-  id          Int         @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // คนยื่นใบลา
-  employee    Employee    @relation("LeaveRequester", fields: [employee_id], references: [id])
+  employee    Employee @relation("LeaveRequester", fields: [employee_id], references: [id])
   employee_id Int
 
-  type        LeaveType
-  start_date  DateTime    @db.Date
-  end_date    DateTime    @db.Date
-  days        Int         // จำนวนวันทำงาน (จ.–ศ.) ที่ลา
-  reason      String?
-  status      LeaveStatus @default(pending)
+  type       LeaveType
+  start_date DateTime    @db.Date
+  end_date   DateTime    @db.Date
+  days       Int // จำนวนวันทำงาน (จ.–ศ.) ที่ลา
+  reason     String?
+  status     LeaveStatus @default(pending)
 
   // คนพิจารณา (ว่างไว้จนกว่าจะอนุมัติ/ไม่อนุมัติ)
-  reviewer    Employee?   @relation("LeaveReviewer", fields: [reviewer_id], references: [id])
+  reviewer    Employee? @relation("LeaveReviewer", fields: [reviewer_id], references: [id])
   reviewer_id Int?
   reviewed_at DateTime?
   review_note String?
 
-  created_at  DateTime    @default(now())
-  updated_at  DateTime    @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@index([employee_id, status])
   @@index([status])
+}
+
+model PayrollRun {
+  id     Int           @id @default(autoincrement())
+  year   Int
+  month  Int // 1-12
+  status PayrollStatus @default(draft)
+
+  // ใครสร้าง / ใครยืนยัน (เก็บเป็น User เพราะ ADMIN ไม่ได้ผูกกับพนักงาน)
+  created_by      User      @relation("PayrollCreatedBy", fields: [created_by_id], references: [id])
+  created_by_id   Int
+  finalized_by    User?     @relation("PayrollFinalizedBy", fields: [finalized_by_id], references: [id])
+  finalized_by_id Int?
+  finalized_at    DateTime?
+
+  payslips Payslip[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // 1 เดือนมีรอบเงินเดือนได้รอบเดียว
+  @@unique([year, month])
+}
+
+model Payslip {
+  id Int @id @default(autoincrement())
+
+  payroll_run    PayrollRun @relation(fields: [payroll_run_id], references: [id], onDelete: Cascade)
+  payroll_run_id Int
+  employee       Employee   @relation(fields: [employee_id], references: [id])
+  employee_id    Int
+
+  // เก็บตัวเลข ณ วันที่คำนวณไว้เลย (ถ้าเงินเดือนเปลี่ยนทีหลัง สลิปเก่าต้องไม่เปลี่ยนตาม)
+  base_salary     Decimal @db.Decimal(10, 2)
+  late_days       Int     @default(0)
+  late_minutes    Int     @default(0)
+  late_deduction  Decimal @db.Decimal(10, 2)
+  social_security Decimal @db.Decimal(10, 2)
+  net_pay         Decimal @db.Decimal(10, 2)
+
+  created_at DateTime @default(now())
+
+  // พนักงาน 1 คน มีสลิปได้ใบเดียวต่อรอบ
+  @@unique([payroll_run_id, employee_id])
+  @@index([employee_id])
 }
