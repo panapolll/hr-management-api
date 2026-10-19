@@ -1,4 +1,21 @@
-import { Controller } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/current-user.decorator';
+import { PayrollService } from './payroll.service';
+import { GeneratePayrollDto } from './dto/payroll.dto';
 
-@Controller('payroll')
-export class PayrollController {}
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('payroll-runs')
+export class PayrollController {
+  constructor(private readonly payrollService: PayrollService) {}
+
+  // HR / ADMIN สร้างหรือคำนวณรอบเงินเดือนใหม่
+  @Post()
+  @Roles('HR', 'ADMIN')
+  generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthUser) {
+    return this.payrollService.generate(dto, user);
+  }
+}
