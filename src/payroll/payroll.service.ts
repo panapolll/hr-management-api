@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { calculatePayslip, PayrollSettings } from './payroll-calc';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -74,5 +78,24 @@ export class PayrollService {
         employee_count: payslips.length,
       };
     });
+  }
+  async finalize(id: number, user: AuthUser) {
+    const run = await this.prisma.payrollRun.findUnique({ where: { id } });
+    if (!run) {
+      throw new NotFoundException(`Payroll run #${id} not found`);
+    }
+
+    const result = await this.prisma.payrollRun.updateMany({
+      where: { id, status: 'draft' },
+      data: {
+        status: 'finalized',
+        finalized_by_id: user.id,
+        finalized_at: new Date(),
+      },
+    });
+    if (result.count === 0) {
+      throw new ConflictException(`Payroll run #${id} is already finalized`);
+    }
+    return this.prisma.payrollRun.findUnique({ where: { id } });
   }
 }
