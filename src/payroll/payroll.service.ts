@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -140,5 +141,27 @@ export class PayrollService {
       },
     });
     return { ...run, totals: totals._sum };
+  }
+
+  findMyPayslips(user: AuthUser) {
+    if (!user.employee_id) {
+      throw new ForbiddenException('This account is not linked to an employee');
+    }
+
+    return this.prisma.payslip.findMany({
+      where: {
+        employee_id: user.employee_id,
+        payroll_run: { status: 'finalized' },
+      },
+      orderBy: [
+        { payroll_run: { year: 'desc' } },
+        { payroll_run: { month: 'desc' } },
+      ],
+      include: {
+        payroll_run: {
+          select: { year: true, month: true, finalized_at: true },
+        },
+      },
+    });
   }
 }
