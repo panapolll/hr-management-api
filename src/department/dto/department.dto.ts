@@ -11,10 +11,9 @@ export class CreateDepartmentDto {
   @IsNotEmpty()
   @MaxLength(10)
   @Matches(/^[A-Z0-9]+$/, {
-    message: 'code ต้องเป็นตัวพิมพ์ใหญ่หรือตัวเลขเท่านั้น',
+    message: 'code must contain only uppercase letters or numbers',
   })
   code!: string;
-
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)

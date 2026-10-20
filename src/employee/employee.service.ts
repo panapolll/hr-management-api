@@ -66,7 +66,7 @@ export class EmployeeService {
       select: this.employeeSelect(this.canSeeSalary(user)),
     });
     if (!employee) {
-      throw new NotFoundException(`ไม่พบพนักงาน id ${id}`);
+      throw new NotFoundException(`Employee #${id} not found`);
     }
     return employee;
   }
@@ -112,7 +112,7 @@ export class EmployeeService {
   async remove(id: number) {
     const employee = await this.getEmployeeOrThrow(id);
     if (employee.status === 'resigned') {
-      throw new BadRequestException('พนักงานคนนี้ได้ลาออกไปแล้ว');
+      throw new BadRequestException('This employee has already resigned');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -158,7 +158,7 @@ export class EmployeeService {
   private async getEmployeeOrThrow(id: number) {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) {
-      throw new NotFoundException(`ไม่พบพนักงาน id ${id}`);
+      throw new NotFoundException(`Employee #${id} not found`);
     }
     return employee;
   }
@@ -168,7 +168,7 @@ export class EmployeeService {
       where: { id: departmentId },
     });
     if (!department) {
-      throw new BadRequestException(`ไม่พบแผนก id ${departmentId}`);
+      throw new BadRequestException(`Department #${departmentId} not found`);
     }
   }
 
@@ -178,12 +178,12 @@ export class EmployeeService {
       error.code === 'P2002'
     ) {
       const fieldNames: Record<string, string> = {
-        employee_code: 'รหัสพนักงาน',
-        email: 'อีเมล',
+        employee_code: 'Employee code',
+        email: 'Email',
       };
       const target = (error.meta?.target as string[] | undefined) ?? [];
       const label = target.map((f) => fieldNames[f] ?? f).join(', ');
-      throw new ConflictException(`${label}นี้มีอยู่ในระบบแล้ว`);
+      throw new ConflictException(`${label} already exists`);
     }
     throw error;
   }

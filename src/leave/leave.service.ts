@@ -121,7 +121,9 @@ export class LeaveService {
       throw new NotFoundException(`Leave request #${id} not found`);
     }
     if (leave.status !== 'pending') {
-      throw new BadRequestException(`Cannot cancel a ${leave.status} request`);
+      throw new BadRequestException(
+        `Only pending requests can be cancelled (current status: ${leave.status})`,
+      );
     }
 
     return this.prisma.leaveRequest.update({
@@ -255,7 +257,9 @@ export class LeaveService {
 
     // ด่าน 3: พิจารณาได้เฉพาะใบที่ยังรออยู่
     if (leave.status !== 'pending') {
-      throw new BadRequestException(`Cannot review a ${leave.status} request`);
+      throw new BadRequestException(
+        `Only pending requests can be reviewed (current status: ${leave.status})`,
+      );
     }
 
     // อัปเดตเฉพาะตอนที่ยังเป็น pending (กันสองคนกดพร้อมกัน)

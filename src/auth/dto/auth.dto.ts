@@ -8,16 +8,16 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
-  @IsEmail({}, { message: 'รูปแบบอีเมลไม่ถูกต้อง' })
+  @IsEmail({}, { message: 'Invalid email format' })
   email!: string;
 
   @IsString()
-  @MinLength(8, { message: 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
   password!: string;
 }
 
 export class LoginDto {
-  @IsEmail({}, { message: 'รูปแบบอีเมลไม่ถูกต้อง' })
+  @IsEmail({}, { message: 'Invalid email format' })
   email!: string;
 
   @IsString()
@@ -26,16 +26,16 @@ export class LoginDto {
 }
 
 export class UpdateRoleDto {
-  @IsEnum(Role, { message: 'role ต้องเป็น ADMIN, HR, MANAGER หรือ EMPLOYEE' })
+  @IsEnum(Role, { message: 'role must be ADMIN, HR, MANAGER or EMPLOYEE' })
   role!: Role;
 }
 
 export class ChangePasswordDto {
   @IsString()
-  @IsNotEmpty({ message: 'กรุณากรอกรหัสผ่านเดิม' })
+  @IsNotEmpty({ message: 'Current password is required' })
   current_password!: string;
 
   @IsString()
-  @MinLength(8, { message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร' })
+  @MinLength(8, { message: 'New password must be at least 8 characters long' })
   new_password!: string;
 }

@@ -50,7 +50,7 @@ export class DepartmentService {
       },
     });
     if (!department) {
-      throw new NotFoundException(`ไม่พบแผนก id ${id}`);
+      throw new NotFoundException(`Department #${id} not found`);
     }
     return department;
   }
@@ -79,17 +79,15 @@ export class DepartmentService {
       where: { id: employeeId },
     });
     if (!employee) {
-      throw new NotFoundException(`ไม่พบพนักงาน id ${employeeId}`);
+      throw new NotFoundException(`Employee #${employeeId} not found`);
     }
     if (employee.department_id !== id) {
       throw new BadRequestException(
-        `พนักงาน id ${employeeId} ไม่อยู่ในแผนก id ${id}`,
+        `Employee #${employeeId} is not in department #${id}`,
       );
     }
     if (employee.status === 'resigned') {
-      throw new BadRequestException(
-        'ไม่สามารถตั้งพนักงานที่ลาออกแล้วเป็นหัวหน้าได้',
-      );
+      throw new BadRequestException('A resigned employee cannot be a manager');
     }
 
     // กันกรณีเป็นหัวหน้าแผนกอื่นอยู่แล้ว (manager_id ห้ามซ้ำ)
@@ -98,7 +96,7 @@ export class DepartmentService {
     });
     if (managedElsewhere) {
       throw new ConflictException(
-        `Employee ${employeeId} is already the manager of ${managedElsewhere.code}`,
+        `Employee #${employeeId} is already the manager of ${managedElsewhere.code}`,
       );
     }
 
@@ -115,10 +113,12 @@ export class DepartmentService {
       include: { _count: { select: { employees: true } } },
     });
     if (!department) {
-      throw new NotFoundException(`ไม่พบแผนก id ${id}`);
+      throw new NotFoundException(`Department #${id} not found`);
     }
     if (department._count.employees > 0) {
-      throw new ConflictException('ไม่สามารถลบแผนกที่ยังมีพนักงานอยู่ได้');
+      throw new ConflictException(
+        'Cannot delete a department that still has employees',
+      );
     }
     return this.prisma.department.delete({ where: { id } });
   }
@@ -128,7 +128,7 @@ export class DepartmentService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('ชื่อหรือรหัสแผนกนี้มีอยู่แล้ว');
+      throw new ConflictException('Department name or code already exists');
     }
     throw error;
   }

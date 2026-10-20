@@ -29,12 +29,12 @@ export class CreateEmployeeDto {
   @MaxLength(100)
   last_name!: string;
 
-  @IsEmail({}, { message: 'รูปแบบอีเมลไม่ถูกต้อง' })
+  @IsEmail({}, { message: 'Invalid email format' })
   email!: string;
 
   @IsOptional()
   @Matches(/^0\d{8,9}$/, {
-    message: 'เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 9-10 หลัก',
+    message: 'Phone number must start with 0 and have 9-10 digits',
   })
   phone?: string;
 
@@ -45,17 +45,17 @@ export class CreateEmployeeDto {
 
   @IsNumber(
     { maxDecimalPlaces: 2 },
-    { message: 'เงินเดือนต้องเป็นตัวเลข ทศนิยมไม่เกิน 2 ตำแหน่ง' },
+    { message: 'Salary must be a number with up to 2 decimal places' },
   )
-  @Min(0, { message: 'เงินเดือนห้ามติดลบ' })
+  @Min(0, { message: 'Salary must not be negative' })
   salary!: number;
 
-  @IsDateString({}, { message: 'วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD' })
+  @IsDateString({}, { message: 'Date must be in YYYY-MM-DD format' })
   start_date!: string;
 
   @IsOptional()
   @IsEnum(EmployeeStatus, {
-    message: 'status ต้องเป็น active, inactive, on_leave หรือ resigned',
+    message: 'status must be active, inactive, on_leave or resigned',
   })
   status?: EmployeeStatus;
 

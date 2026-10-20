@@ -25,7 +25,7 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (exists) {
-      throw new ConflictException('อีเมลนี้ถูกใช้งานแล้ว');
+      throw new ConflictException('This email is already in use');
     }
 
     const employee = await this.prisma.employee.findUnique({
@@ -50,7 +50,7 @@ export class AuthService {
     });
 
     return {
-      message: 'สร้างบัญชีสำเร็จ',
+      message: 'Account created successfully',
       user: {
         id: user.id,
         email: user.email,
@@ -67,7 +67,7 @@ export class AuthService {
     });
 
     if (!user || !(await bcrypt.compare(dto.password, user.password))) {
-      throw new UnauthorizedException('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     // เช็คหลังรหัสผ่านถูก เพื่อไม่ให้คนเดาได้ว่าอีเมลไหนถูกระงับ
@@ -114,11 +114,13 @@ export class AuthService {
       user.password,
     );
     if (!isCurrentValid) {
-      throw new UnauthorizedException('รหัสผ่านเดิมไม่ถูกต้อง');
+      throw new UnauthorizedException('Current password is incorrect');
     }
 
     if (dto.current_password === dto.new_password) {
-      throw new BadRequestException('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม');
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(dto.new_password, 10);
@@ -126,7 +128,7 @@ export class AuthService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
-    return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
+    return { message: 'Password changed successfully' };
   }
 
   findAllUsers() {
@@ -144,11 +146,11 @@ export class AuthService {
 
   async updateRole(targetId: number, role: Role, currentUserId: number) {
     if (targetId === currentUserId) {
-      throw new BadRequestException('ไม่สามารถเปลี่ยน role ของตัวเองได้');
+      throw new BadRequestException('You cannot change your own role');
     }
     const user = await this.prisma.user.findUnique({ where: { id: targetId } });
     if (!user) {
-      throw new NotFoundException(`ไม่พบผู้ใช้ id ${targetId}`);
+      throw new NotFoundException(`User #${targetId} not found`);
     }
     return this.prisma.user.update({
       where: { id: targetId },
