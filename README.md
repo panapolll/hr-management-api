@@ -1,6 +1,6 @@
 # HR Management API
 
-A REST API for managing employees, departments, attendance and access control, built with **NestJS**, **Prisma** and **PostgreSQL**.
+A REST API for managing employees, departments, attendance, leave and payroll, built with **NestJS**, **Prisma** and **PostgreSQL**.
 
 ## Architecture
 
@@ -44,6 +44,22 @@ A REST API for managing employees, departments, attendance and access control, b
 - Late minutes calculated in Thailand time (UTC+7), independent of server timezone
 - Managers see only their own department; HR and ADMIN see everyone
 
+**Leave**
+
+- Sick, personal and vacation leave with yearly quotas (configurable)
+- Only weekdays are counted; overlapping requests are rejected
+- Pending requests reserve quota, so employees cannot over-book
+- Managers review their own department; HR reviews everyone; nobody can review their own request
+- Approve / reject is protected against double-clicks and two reviewers acting at the same time
+
+**Payroll**
+
+- HR generates a monthly payroll run as a draft and can recalculate it until it is finalized
+- Late deduction, social security (5%, capped at 750) and net pay calculated with `Decimal` to avoid rounding errors
+- Finalizing locks the run; it cannot be recalculated or finalized twice
+- Base salary is copied into each payslip, so later salary changes do not affect past payslips
+- Employees see only their own payslips, and only after the run is finalized
+
 ## Permissions
 
 | Action                              | EMPLOYEE | MANAGER  | HR  | ADMIN |
@@ -54,6 +70,12 @@ A REST API for managing employees, departments, attendance and access control, b
 | Manage departments & managers       |    ❌    |    ❌    | ✅  |  ✅   |
 | Check in / out, view own attendance |    ✅    |    ✅    | ✅  |  ❌   |
 | View others' attendance             |    ❌    | Own dept | ✅  |  ✅   |
+| Request / cancel own leave          |    ✅    |    ✅    | ✅  |  ❌   |
+| View others' leave                  |    ❌    | Own dept | ✅  |  ✅   |
+| Approve / reject leave              |    ❌    | Own dept | ✅  |  ❌   |
+| Generate / finalize payroll         |    ❌    |    ❌    | ✅  |  ✅   |
+| View all payslips                   |    ❌    |    ❌    | ✅  |  ✅   |
+| View own finalized payslips         |    ✅    |    ✅    | ✅  |  ❌   |
 | Create user accounts                |    ❌    |    ❌    | ✅  |  ✅   |
 | Change user roles                   |    ❌    |    ❌    | ❌  |  ✅   |
 
@@ -178,6 +200,30 @@ Query parameters for `GET /employees`: `page`, `limit`, `search`, `department_id
 
 Query parameters for `GET /attendance`: `from`, `to`, `department_id`, `employee_id`, `page`, `limit`
 
+### Leave
+
+| Method | Route                 | Access                        |
+| ------ | --------------------- | ----------------------------- |
+| POST   | `/leaves`             | Employees                     |
+| GET    | `/leaves/me`          | Employees                     |
+| GET    | `/leaves/me/balance`  | Employees                     |
+| PATCH  | `/leaves/:id/cancel`  | Employees (own pending only)  |
+| GET    | `/leaves`             | MANAGER (own dept), HR, ADMIN |
+| PATCH  | `/leaves/:id/approve` | MANAGER (own dept), HR        |
+| PATCH  | `/leaves/:id/reject`  | MANAGER (own dept), HR        |
+
+Query parameters for `GET /leaves`: `status`, `type`, `employee_id`, `department_id`, `year`, `page`, `limit`
+
+### Payroll
+
+| Method | Route                        | Access    |
+| ------ | ---------------------------- | --------- |
+| POST   | `/payroll-runs`              | HR, ADMIN |
+| GET    | `/payroll-runs`              | HR, ADMIN |
+| GET    | `/payroll-runs/:id`          | HR, ADMIN |
+| PATCH  | `/payroll-runs/:id/finalize` | HR, ADMIN |
+| GET    | `/payslips/me`               | Employees |
+
 ## Business Rules
 
 - Work starts at 08:00 (configurable via `WORK_START`)
@@ -186,13 +232,34 @@ Query parameters for `GET /attendance`: `from`, `to`, `department_id`, `employee
 - Only `active` employees can check in; `on_leave` can still log in and view their data; `inactive` and `resigned` cannot log in
 - An employee can manage only one department, and must belong to it
 
+**Leave**
+
+- Yearly quotas: sick 30, personal 6, vacation 6 days (configurable via `LEAVE_QUOTA_*`)
+- A request must start and end in the same year
+- Only `pending` requests can be cancelled, approved or rejected; a reject requires a note
+
+**Payroll**
+
+- Per-minute wage = salary ÷ 30 ÷ 8 ÷ 60 (configurable via `PAYROLL_DAYS_PER_MONTH`, `PAYROLL_HOURS_PER_DAY`)
+- Late within the grace period is not deducted; late beyond it is deducted for the full late minutes
+- Social security = 5% of salary, capped at 750 (configurable via `SOCIAL_SECURITY_RATE`, `SOCIAL_SECURITY_MAX`)
+- Net pay = salary − late deduction − social security (never below 0)
+- Payslips are created for employees who are not resigned and started on or before the last day of the month
+- Out of scope: tax, overtime, bonus and absence deduction
+
+## Testing
+
+The Payroll module was tested manually with Postman against a written test plan (23 test cases, including boundary cases such as being exactly 30 minutes late).
+
+See [docs/payroll-test-plan.md](docs/payroll-test-plan.md).
+
 ## Roadmap
 
 - [x] Departments & Employees
 - [x] Authentication & role-based access
 - [x] Attendance
-- [ ] Leave management
-- [ ] Payroll
+- [x] Leave management
+- [x] Payroll
 - [ ] Overtime
 - [ ] Reports & dashboard
 - [ ] Swagger documentation
