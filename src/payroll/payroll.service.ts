@@ -98,4 +98,47 @@ export class PayrollService {
     }
     return this.prisma.payrollRun.findUnique({ where: { id } });
   }
+
+  findAll() {
+    return this.prisma.payrollRun.findMany({
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      include: { _count: { select: { payslips: true } } },
+    });
+  }
+
+  async findOne(id: number) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: {
+        payslips: {
+          orderBy: { employee: { employee_code: 'asc' } },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                employee_code: true,
+                first_name: true,
+                last_name: true,
+                department: { select: { code: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!run) {
+      throw new NotFoundException(`Payroll run #${id} not found`);
+    }
+
+    const totals = await this.prisma.payslip.aggregate({
+      where: { payroll_run_id: id },
+      _sum: {
+        base_salary: true,
+        late_deduction: true,
+        social_security: true,
+        net_pay: true,
+      },
+    });
+    return { ...run, totals: totals._sum };
+  }
 }

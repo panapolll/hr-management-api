@@ -3,6 +3,7 @@ import {
   Controller,
   Param,
   ParseIntPipe,
+  Get,
   Patch,
   Post,
   UseGuards,
@@ -35,5 +36,17 @@ export class PayrollController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.payrollService.finalize(id, user);
+  }
+
+  @Get()
+  @Roles('HR', 'ADMIN')
+  findAll() {
+    return this.payrollService.findAll();
+  }
+
+  @Get(':id')
+  @Roles('HR', 'ADMIN')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.payrollService.findOne(id);
   }
 }
