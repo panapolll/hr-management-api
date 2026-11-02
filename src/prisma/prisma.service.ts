@@ -9,6 +9,8 @@ export class PrismaService
   constructor() {
     super({ log: [{ emit: 'event', level: 'query' }] });
 
+    if (process.env.NODE_ENV === 'production') return;
+
     this.$on('query', (e) => {
       if (['SELECT 1', 'BEGIN', 'COMMIT'].includes(e.query)) return;
 
